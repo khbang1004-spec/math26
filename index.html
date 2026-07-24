@@ -155,7 +155,7 @@
   </div>
 
   <script>
-    // ★★★ 이 부분에 발급받은 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
+    // ★★★ 이 부분에 방금 배포한 앱스 스크립트 웹 앱 URL을 붙여넣으세요 ★★★
     const GAS_WEB_APP_URL = "YOUR_APPS_SCRIPT_URL_HERE";
 
     // --- GRAPH DATA WITH STRUCTURED TAGS FOR AI ---
@@ -291,29 +291,23 @@
         function toX(x){return pad+(x-xMin)/(xMax-xMin)*plotW;}
         function toY(y){return pad+(yMax-y)/(yMax-yMin)*plotH;}
 
-        // grid
         ctx.strokeStyle='#ede7db';ctx.lineWidth=0.5;
         for(let x=Math.ceil(xMin);x<=Math.floor(xMax);x++){ctx.beginPath();ctx.moveTo(toX(x),pad);ctx.lineTo(toX(x),pad+plotH);ctx.stroke();}
         for(let y=Math.ceil(yMin);y<=Math.floor(yMax);y++){ctx.beginPath();ctx.moveTo(pad,toY(y));ctx.lineTo(pad+plotW,toY(y));ctx.stroke();}
 
-        // axes (x축, y축)
         ctx.strokeStyle='#a8a29e';ctx.lineWidth=1.5;
         const ax=toX(0),ay=toY(0);
-        ctx.beginPath();ctx.moveTo(pad,ay);ctx.lineTo(pad+plotW+12,ay);ctx.stroke(); // x축 연장
-        ctx.beginPath();ctx.moveTo(ax,pad-12);ctx.lineTo(ax,pad+plotH);ctx.stroke(); // y축 연장
+        ctx.beginPath();ctx.moveTo(pad,ay);ctx.lineTo(pad+plotW+12,ay);ctx.stroke(); 
+        ctx.beginPath();ctx.moveTo(ax,pad-12);ctx.lineTo(ax,pad+plotH);ctx.stroke(); 
 
-        // x축 화살표
         ctx.beginPath();ctx.moveTo(pad+plotW+12,ay);ctx.lineTo(pad+plotW+5,ay-4);ctx.lineTo(pad+plotW+5,ay+4);ctx.fillStyle='#a8a29e';ctx.fill();
-        // y축 화살표
         ctx.beginPath();ctx.moveTo(ax,pad-12);ctx.lineTo(ax-4,pad-5);ctx.lineTo(ax+4,pad-5);ctx.fillStyle='#a8a29e';ctx.fill();
 
-        // 축 라벨 (x, y, O)
         ctx.fillStyle='#78716c';ctx.font='italic 12px "Noto Sans KR"';
         ctx.textAlign='left';ctx.fillText('x', pad+plotW+15, ay+4);
         ctx.textAlign='center';ctx.fillText('y', ax, pad-18);
         ctx.font='11px "Noto Sans KR"';ctx.textAlign='right';ctx.fillText('O', ax-6, ay+14);
 
-        // dashed vertical at x=a
         const aPixel=toX(g.aX);
         ctx.strokeStyle='#ef4444';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
         ctx.beginPath();ctx.moveTo(aPixel,pad);ctx.lineTo(aPixel,pad+plotH);ctx.stroke();
@@ -321,7 +315,6 @@
         ctx.fillStyle='#ef4444';ctx.font='10px Noto Sans KR';ctx.textAlign='center';
         ctx.fillText('x = a',aPixel,pad+plotH+12);
 
-        // draw curve pieces
         ctx.strokeStyle='#047857';ctx.lineWidth=2.5;ctx.lineJoin='round';
         (g.pieces||[]).forEach(piece=>{
             ctx.beginPath();let started=false;
@@ -337,7 +330,6 @@
             ctx.stroke();
         });
 
-        // draw point markers
         (g.points||[]).forEach(p=>{
             if(p.filled){
                 ctx.fillStyle='#c0440e';
@@ -498,15 +490,13 @@ async function compareWithAI() {
         };
 
         try {
-            const apiKey = ""; // Canvas 환경에서 자동 주입 (또는 API KEY 직접 입력)
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+            // ★ AI 판단 기능: 앱스 스크립트로 프록시 통신하도록 수정됨
+            const response = await fetchGAS({
+                action: 'ai_compare',
+                payload: payload
             });
             
-            const result = await response.json();
+            const result = response.data;
             if (!result.candidates || result.candidates.length === 0) throw new Error("AI 응답 없음");
             
             const jsonText = result.candidates[0].content.parts[0].text;
