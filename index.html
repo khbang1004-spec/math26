@@ -156,7 +156,7 @@
 
   <script>
     // ★ 최신 배포된 앱스 스크립트 웹 앱 URL 적용 완료
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzUp6D98cZznqPuOLULdIHe4nSXNhqaLaLRg9jMN3M0Wf-LfG7xpxXdSk97_iZJRtrI6g/exec";
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwDAXX4dZoWrXqr2-b7jMTcUrFF_UoMUg22AodNO77t1-wIiKT8dphAlng7J1-_4RfPFg/exec";
 
     // --- GRAPH DATA WITH STRUCTURED TAGS FOR AI ---
     const GRAPHS = [
@@ -256,6 +256,19 @@
         toast.classList.add('opacity-0', 'pointer-events-none');
       }, 3000);
     }
+
+        function getAIErrorMessage(result) {
+            if (!result) return 'API 응답 오류';
+            if (typeof result === 'string') return result;
+            if (result.error && typeof result.error.message === 'string') return result.error.message;
+            if (result.message && typeof result.message === 'string') return result.message;
+            return 'API 응답 오류';
+        }
+
+        function isModelDeploymentMismatch(message) {
+            if (!message) return false;
+            return message.includes('models/gemini-1.5-flash') || message.includes('not found for API version');
+        }
 
     // Apps Script 통신용 Helper
     async function fetchGAS(payload) {
@@ -498,7 +511,7 @@
             const result = response.data;
             if (!result || !result.candidates || result.candidates.length === 0) {
                 console.error("Gemini API 응답 원본:", result);
-                const errMsg = (result && result.error) ? result.error.message : "API 응답 오류";
+                const errMsg = getAIErrorMessage(result);
                 throw new Error(errMsg);
             }
             
@@ -508,7 +521,11 @@
             processAIResults(parsed.answers, combinedPrompt);
         } catch (err) {
             console.error('AI 호출 실패:', err);
-            showToast('AI 분석 오류: ' + err.message, true);
+            if (isModelDeploymentMismatch(err.message)) {
+                showToast('AI 모델 버전 불일치: Apps Script 웹앱을 새 버전으로 다시 배포하세요.', true);
+            } else {
+                showToast('AI 분석 오류: ' + err.message, true);
+            }
         } finally {
             btn.disabled=false;
             btn.innerHTML=origContent;
