@@ -155,8 +155,8 @@
   </div>
 
   <script>
-    // ★★★ 이 부분에 방금 배포한 앱스 스크립트 웹 앱 URL을 붙여넣으세요 ★★★
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxEU2K0RbFqCyj1G-HPZaUqgYxQV-Ntd6GOPdulHZhAQSsaGJp-ms6sBSYPsT9e0m_8-Q/exec";
+    // ★ 최신 배포된 앱스 스크립트 웹 앱 URL 적용 완료
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwjDYV_a0BHCcIsA5OZiYfvyTBUUN3z37yjRHaq-_GPhhT-XAFWd0T14Yp8rHu54VOgTg/exec";
 
     // --- GRAPH DATA WITH STRUCTURED TAGS FOR AI ---
     const GRAPHS = [
@@ -401,23 +401,23 @@
         GRAPHS.forEach((g,i)=>{
             const el=document.getElementById('result-'+i);
             let html='<div class="space-y-1 mt-2 pt-2 border-t border-stone-200">';
-        g.checks.forEach((chk,ci)=>{
-            total++;
-            const mine=classifications[i]?.[ci]||'-';
-            const ok=mine===chk.answer;
-            if(ok) correct++;
-            html+=`<div class="flex items-center justify-between text-xs pb-1"><span>${chk.label}: <strong class="${ok?'text-emerald-600':'text-red-500'}">${mine}</strong></span><span class="text-stone-400">정답: ${chk.answer}</span></div>`;
+            g.checks.forEach((chk,ci)=>{
+                total++;
+                const mine=classifications[i]?.[ci]||'-';
+                const ok=mine===chk.answer;
+                if(ok) correct++;
+                html+=`<div class="flex items-center justify-between text-xs pb-1"><span>${chk.label}: <strong class="${ok?'text-emerald-600':'text-red-500'}">${mine}</strong></span><span class="text-stone-400">정답: ${chk.answer}</span></div>`;
+            });
+            html+='</div>';el.innerHTML=html;el.classList.remove('hidden');
         });
-        html+='</div>';el.innerHTML=html;el.classList.remove('hidden');
-    });
-    myAcc=Math.round(correct/total*100);
-    submitted=true;
-    document.getElementById('my-status').textContent=`정답률 ${myAcc}% (${correct}/${total})`;
-    updateSubmittedUI();
-}
+        myAcc=Math.round(correct/total*100);
+        submitted=true;
+        document.getElementById('my-status').textContent=`정답률 ${myAcc}% (${correct}/${total})`;
+        updateSubmittedUI();
+    }
 
-async function compareWithAI() {
-    if(!submitted) { showToast('먼저 ①탭에서 제출을 완료해주세요.', true); return; }
+    async function compareWithAI() {
+        if(!submitted) { showToast('먼저 ①탭에서 제출을 완료해주세요.', true); return; }
         const promptContEl=document.getElementById('ai-prompt-cont');
         const promptDiffEl=document.getElementById('ai-prompt-diff');
         const promptCont=promptContEl.value.trim();
@@ -490,18 +490,16 @@ async function compareWithAI() {
         };
 
         try {
-            // ★ AI 판단 기능: 앱스 스크립트로 프록시 통신하도록 수정됨
             const response = await fetchGAS({
                 action: 'ai_compare',
                 payload: payload
             });
             
             const result = response.data;
-            // ▼ 에러의 진짜 원인을 화면에 띄워주고 콘솔에 기록하도록 수정 ▼
-            if (!result.candidates || result.candidates.length === 0) {
-                console.error("Gemini API 상세 에러:", result);
-                const errMsg = result.error ? result.error.message : "AI 응답 없음";
-                throw new Error("Gemini 에러: " + errMsg);
+            if (!result || !result.candidates || result.candidates.length === 0) {
+                console.error("Gemini API 응답 원본:", result);
+                const errMsg = (result && result.error) ? result.error.message : "API 응답 오류";
+                throw new Error(errMsg);
             }
             
             const jsonText = result.candidates[0].content.parts[0].text;
@@ -510,7 +508,7 @@ async function compareWithAI() {
             processAIResults(parsed.answers, combinedPrompt);
         } catch (err) {
             console.error('AI 호출 실패:', err);
-            showToast('AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', true);
+            showToast('AI 분석 오류: ' + err.message, true);
         } finally {
             btn.disabled=false;
             btn.innerHTML=origContent;
@@ -680,7 +678,7 @@ async function compareWithAI() {
     }
 
     async function shareAttempt(id) {
-        if(!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes("https://script.google.com/macros/s/AKfycbxEU2K0RbFqCyj1G-HPZaUqgYxQV-Ntd6GOPdulHZhAQSsaGJp-ms6sBSYPsT9e0m_8-Q/execE")) {
+        if(!GAS_WEB_APP_URL) {
             showToast('Apps Script URL이 설정되지 않았습니다.', true); 
             return; 
         }
@@ -720,7 +718,7 @@ async function compareWithAI() {
     }
 
     window.loadResultsFunc = async function() {
-        if(!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes("https://script.google.com/macros/s/AKfycbxEU2K0RbFqCyj1G-HPZaUqgYxQV-Ntd6GOPdulHZhAQSsaGJp-ms6sBSYPsT9e0m_8-Q/execE")) return;
+        if(!GAS_WEB_APP_URL) return;
         const tbody = document.getElementById('results-tbody');
         const noR = document.getElementById('no-results');
         
@@ -844,8 +842,6 @@ async function compareWithAI() {
     updateSubmittedUI();
     renderPromptHistory();
     buildGrid();
-    
-    // 초기 로딩 시 결과 불러오기 실행
     setTimeout(loadResultsFunc, 1000); 
   </script>
  </body>
