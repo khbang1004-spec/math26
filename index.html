@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>연속과 미분가능성 · AI 판별 실험실</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%234a7c59'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='34' fill='white'%3E%CE%94%3C/text%3E%3C/svg%3E">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
@@ -156,7 +157,7 @@
 
   <script>
     // ★ 최신 배포된 앱스 스크립트 웹 앱 URL 적용 완료
-    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwDAXX4dZoWrXqr2-b7jMTcUrFF_UoMUg22AodNO77t1-wIiKT8dphAlng7J1-_4RfPFg/exec";
+    const GAS_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbx1bRDyIdIOOJVHlV9FoySwNFSyallE9H6j_Y-uSagYYSfoH0tjsyD1fNfIE39C0dzKpg/exec";
 
     // --- GRAPH DATA WITH STRUCTURED TAGS FOR AI ---
     const GRAPHS = [
@@ -268,6 +269,20 @@
         function isModelDeploymentMismatch(message) {
             if (!message) return false;
             return message.includes('models/gemini-1.5-flash') || message.includes('not found for API version');
+        }
+
+        function isQuotaExceededError(message) {
+            if (!message) return false;
+            const lower = message.toLowerCase();
+            return lower.includes('quota exceeded') || lower.includes('rate limit') || lower.includes('429');
+        }
+
+        function parseRetrySeconds(message) {
+            if (!message) return null;
+            const match = message.match(/Please retry in\s+([\d.]+)s\.?/i);
+            if (!match) return null;
+            const n = Math.ceil(Number(match[1]));
+            return Number.isFinite(n) ? n : null;
         }
 
     // Apps Script 통신용 Helper
@@ -523,6 +538,10 @@
             console.error('AI 호출 실패:', err);
             if (isModelDeploymentMismatch(err.message)) {
                 showToast('AI 모델 버전 불일치: Apps Script 웹앱을 새 버전으로 다시 배포하세요.', true);
+            } else if (isQuotaExceededError(err.message)) {
+                const retrySeconds = parseRetrySeconds(err.message);
+                const retryMsg = retrySeconds ? ` 약 ${retrySeconds}초 뒤 다시 시도하세요.` : ' 잠시 후 다시 시도하세요.';
+                showToast('Gemini API 쿼터가 초과되었습니다.' + retryMsg, true);
             } else {
                 showToast('AI 분석 오류: ' + err.message, true);
             }
