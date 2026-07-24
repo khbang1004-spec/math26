@@ -497,7 +497,12 @@ async function compareWithAI() {
             });
             
             const result = response.data;
-            if (!result.candidates || result.candidates.length === 0) throw new Error("AI 응답 없음");
+            // ▼ 에러의 진짜 원인을 화면에 띄워주고 콘솔에 기록하도록 수정 ▼
+            if (!result.candidates || result.candidates.length === 0) {
+                console.error("Gemini API 상세 에러:", result);
+                const errMsg = result.error ? result.error.message : "AI 응답 없음";
+                throw new Error("Gemini 에러: " + errMsg);
+            }
             
             const jsonText = result.candidates[0].content.parts[0].text;
             const parsed = JSON.parse(jsonText);
