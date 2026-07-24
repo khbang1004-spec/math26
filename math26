@@ -1,0 +1,857 @@
+<!doctype html>
+<html lang="ko">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>연속과 미분가능성 · AI 판별 실험실</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body { font-family: 'Noto Sans KR', sans-serif; background-color: #fafaf9; }
+    .graph-card { background: #fff; border: 1px solid #d4c9b0; border-radius: 12px; padding: 14px; }
+    canvas.graph-canvas { background: #fafaf5; border-radius: 8px; border: 1px solid #e0d8c8; width: 100%; max-width: 280px; height: auto; margin: 0 auto; display: block; }
+    .opt-btn { border: 1px solid #b8a88a; border-radius: 6px; padding: 3px 9px; font-size: 11px; color: #6b5c3e; cursor: pointer; transition: all .15s; background: #fff; white-space: nowrap; }
+    .opt-btn:hover { border-color: #4a7c59; color: #4a7c59; }
+    .opt-btn.selected { background: #4a7c59; color: #fff; border-color: #4a7c59; font-weight: 700; }
+    .tab-btn { padding: 8px 20px; border-radius: 8px 8px 0 0; font-size: 13px; font-weight: 600; cursor: pointer; border: 1px solid #d4c9b0; border-bottom: none; color: #6b5c3e; background: #ede7db; transition: all 0.2s;}
+    .tab-btn.active { background: #fff; color: #4a7c59; border-color: #4a7c59; }
+    .checkpoint-section { margin-top: 8px; padding: 6px 0; border-top: 1px solid #ede7db; }
+    .checkpoint-title { font-size: 11px; color: #6b5c3e; font-weight: 600; margin-bottom: 4px; }
+    .canva-button { background: #4a7c59; color: #fff; border: none; cursor: pointer; transition: all 0.2s;}
+    .canva-button:hover { opacity: .9; transform: translateY(-1px); }
+    .canva-button:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+    .ai-forbid-badge { display: inline-block; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 2px 8px; font-size: 11px; font-weight: 600; margin: 2px 4px 2px 0; }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.263.0/dist/umd/lucide.min.js"></script>
+ </head>
+ <body data-template-id="__page-root" class="w-full min-h-screen relative text-stone-800">
+  
+  <div id="toast-message" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 transform transition-all duration-300 opacity-0 pointer-events-none bg-stone-800 text-white px-6 py-3 rounded-xl shadow-lg font-bold text-sm flex items-center gap-2">
+    <i data-lucide="alert-circle" class="w-4 h-4"></i>
+    <span id="toast-text">알림 메시지</span>
+  </div>
+
+  <header class="w-full px-6 py-4 border-b border-stone-300 bg-white">
+   <div class="max-w-7xl mx-auto">
+    <h1 class="text-2xl font-bold">연속과 미분가능성 · AI 판별 실험실</h1>
+    <p class="mt-1 text-sm text-stone-500">먼저 그래프를 보고 스스로 판단해본 뒤, AI에게 개념을 가르쳐서 같은 문제를 풀게 해보세요.</p>
+   </div>
+  </header>
+
+  <div class="max-w-7xl mx-auto px-6 pt-4">
+   <div class="flex flex-wrap items-center gap-3 mb-4">
+    <input id="student-id" type="text" class="border border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-emerald-600" placeholder="학번"> 
+    <input id="student-name" type="text" class="border border-stone-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:border-emerald-600" placeholder="이름"> 
+    <span id="progress-text" class="text-sm text-stone-500 ml-2 font-medium">로딩 중...</span>
+   </div>
+   <div class="flex gap-1 flex-wrap border-b border-stone-300">
+    <button class="tab-btn active" id="tab-solve-btn" onclick="switchTab('solve')">① 그래프 판별하기</button> 
+    <button class="tab-btn" id="tab-ai-btn" onclick="switchTab('ai')">② AI 가르치기</button> 
+    <button class="tab-btn" id="tab-results-btn" onclick="switchTab('results')">전체 결과 공유</button>
+   </div>
+  </div>
+
+  <main id="tab-solve" class="max-w-7xl mx-auto px-6 py-4">
+   <div class="flex items-center justify-between flex-wrap gap-3 mb-4">
+    <div class="flex items-center gap-4 flex-wrap">
+     <div class="bg-white border border-stone-300 rounded-lg px-4 py-2 shadow-sm">
+      <p class="text-xs text-stone-500">내 정답 확인</p>
+      <p id="my-status" class="font-bold text-emerald-700 text-sm">아직 제출 전</p>
+     </div>
+    </div>
+    <button class="px-4 py-2 rounded-lg text-sm font-medium bg-stone-200 text-stone-700 hover:bg-stone-300 transition-colors" onclick="resetAll()">초기화</button>
+   </div>
+   <p class="text-sm text-stone-600 mb-4 bg-stone-100 p-3 rounded-lg border border-stone-200">10개의 그래프 각각에 대해, 빨간 점선(x=a)에서 그래프가 <strong>연속</strong>인지, 그리고 <strong>미분가능</strong>한지 형태를 보고 판단해보세요.</p>
+   
+   <div id="graph-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4"></div>
+   
+   <div class="mt-8 flex flex-col items-center gap-3 py-6 border-t border-stone-200">
+    <button class="canva-button px-10 py-3.5 rounded-xl text-lg font-bold shadow-md hover:shadow-lg" onclick="submitClassification()">내 판단 제출하기</button>
+    <p id="solve-next-hint" class="hidden text-sm text-emerald-700 font-semibold flex items-center gap-1"><i data-lucide="check-circle" class="w-4 h-4"></i> 제출 완료! 이제 "② AI 가르치기" 탭으로 이동하세요.</p>
+   </div>
+  </main>
+
+  <main id="tab-ai" class="hidden max-w-7xl mx-auto px-6 py-4">
+   <div class="bg-white border border-stone-300 rounded-xl p-5 mb-6 shadow-sm">
+    <div class="flex items-center justify-between flex-wrap gap-2 mb-4 border-b border-stone-100 pb-3">
+     <h3 class="text-lg font-bold text-stone-800 flex items-center gap-2"><i data-lucide="bot" class="w-5 h-5 text-purple-600"></i> AI에게 개념 가르치기</h3>
+     <div class="bg-stone-50 border border-stone-200 rounded-lg px-3 py-1.5 text-sm text-stone-600">내 정확도: <strong id="ai-my-acc" class="text-emerald-600">-</strong></div>
+    </div>
+    
+    <div class="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 mb-4">
+     <p class="text-sm text-amber-800 font-bold mb-2">⚠ AI는 다음 단어들의 의미를 전혀 모릅니다!</p>
+     <div class="flex flex-wrap gap-1 mb-2">
+         <span class="ai-forbid-badge">극한</span><span class="ai-forbid-badge">수렴</span><span class="ai-forbid-badge">발산</span>
+         <span class="ai-forbid-badge">미분계수</span>
+     </div>
+     <p class="text-xs text-amber-700 leading-relaxed">위 단어들을 쓰지 않고, 오직 <strong>그래프의 생김새, 선의 이어짐, 값의 일치 여부 등</strong>을 풀어서 설명해야 합니다.<br>AI는 여러분이 적어준 기준을 융통성 없이 <strong>기계적으로만 적용</strong>합니다.<br>판단 기준을 작성할 때, <strong>가장 간결하게</strong> 설명할 수 있도록 생각해보세요.</p>
+    </div>
+    
+    <p id="ai-locked-msg" class="text-sm text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4 font-medium flex items-center gap-1"><i data-lucide="lock" class="w-4 h-4"></i> 먼저 "① 그래프 판별하기" 탭에서 정답을 제출해야 활성화됩니다.</p>
+    
+    <div class="space-y-4">
+        <div>
+            <label class="block text-sm font-bold text-stone-700 mb-1 flex items-center gap-1"><i data-lucide="pen-tool" class="w-4 h-4 text-emerald-600"></i> 1. '연속' 판단 기준</label>
+            <textarea id="ai-prompt-cont" rows="2" class="w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 transition-all resize-y" placeholder="여기에 입력해주세요."></textarea>
+        </div>
+        <div>
+            <label class="block text-sm font-bold text-stone-700 mb-1 flex items-center gap-1"><i data-lucide="pen-tool" class="w-4 h-4 text-purple-600"></i> 2. '미분가능' 판단 기준</label>
+            <textarea id="ai-prompt-diff" rows="2" class="w-full border border-stone-300 rounded-xl p-3 text-sm focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200 transition-all resize-y" placeholder="여기에 입력해주세요."></textarea>
+        </div>
+    </div>
+    
+    <div class="flex flex-wrap gap-2 mt-4">
+     <button id="btn-ai-compare" class="px-6 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 bg-purple-600 text-white hover:bg-purple-700 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" onclick="compareWithAI()" disabled>
+         <i data-lucide="zap" class="w-4 h-4"></i> AI가 내 설명대로 풀게 하기
+     </button>
+    </div>
+
+    <!-- AI Results Panel -->
+    <div id="accuracy-panel" class="hidden mt-6 flex gap-8 items-end flex-wrap border-t border-stone-100 pt-6">
+     <div class="text-center bg-stone-50 p-4 rounded-xl border border-stone-200">
+      <canvas id="gauge-my" width="120" height="70"></canvas>
+      <p class="text-xs font-bold text-stone-600 mt-2">내 정확도</p>
+     </div>
+     <div class="text-center bg-purple-50 p-4 rounded-xl border border-purple-100">
+      <canvas id="gauge-ai" width="120" height="70"></canvas>
+      <p class="text-xs font-bold text-purple-700 mt-2">AI 정확도 (내 설명 기반)</p>
+     </div>
+    </div>
+    <div id="ai-current-result" class="mt-6"></div>
+   </div>
+
+   <!-- Prompt History -->
+   <div class="bg-white border border-stone-300 rounded-xl p-5 shadow-sm">
+    <h3 class="text-lg font-bold text-stone-800 mb-1">내 가르침(프롬프트) 기록</h3>
+    <p class="text-sm text-stone-500 mb-4">설명을 다듬어가며 여러 번 시도해보세요. 가장 결과가 좋은 설명을 공유할 수 있습니다.</p>
+    <div id="prompt-history-list" class="space-y-4"></div>
+    <p id="no-prompt-history" class="text-stone-400 text-sm text-center py-6 bg-stone-50 rounded-lg border border-dashed border-stone-300">아직 시도한 기록이 없습니다.</p>
+   </div>
+  </main>
+
+  <div id="tab-results" class="hidden max-w-7xl mx-auto px-6 py-6">
+   <div class="flex items-center justify-between mb-4 bg-white p-4 rounded-xl shadow-sm border border-stone-200">
+    <h2 class="text-xl font-bold text-stone-800 flex items-center gap-2"><i data-lucide="globe" class="w-5 h-5 text-emerald-600"></i> 전체 결과 공유</h2>
+    <button onclick="loadResultsFunc()" class="text-sm px-4 py-2 rounded-lg border border-stone-300 text-stone-700 hover:bg-stone-100 font-medium flex items-center gap-1 transition-colors"><i data-lucide="refresh-cw" class="w-4 h-4"></i> 새로고침</button>
+   </div>
+   
+   <div class="bg-white border border-stone-200 rounded-xl overflow-hidden shadow-sm">
+    <div class="overflow-x-auto">
+     <table class="w-full text-sm text-left">
+      <thead class="text-xs text-stone-500 bg-stone-50 border-b border-stone-200">
+       <tr>
+        <th class="px-4 py-3 font-semibold">작성자</th>
+        <th class="px-4 py-3 font-semibold">프롬프트 미리보기</th>
+        <th class="px-4 py-3 font-semibold text-center">내 정답률</th>
+        <th class="px-4 py-3 font-semibold text-center">AI 정답률</th>
+        <th class="px-4 py-3 font-semibold text-center">자세히</th>
+       </tr>
+      </thead>
+      <tbody id="results-tbody" class="text-stone-700 divide-y divide-stone-100"></tbody>
+     </table>
+    </div>
+    <p id="no-results" class="text-stone-400 text-sm p-8 text-center bg-stone-50">아직 공유된 결과가 없습니다. 첫 번째로 공유해보세요!</p>
+   </div>
+  </div>
+
+  <script>
+    // ★★★ 이 부분에 발급받은 Apps Script 웹 앱 URL을 붙여넣으세요 ★★★
+    const GAS_WEB_APP_URL = "YOUR_APPS_SCRIPT_URL_HERE";
+
+    // --- GRAPH DATA WITH STRUCTURED TAGS FOR AI ---
+    const GRAPHS = [
+    {id:'1', aX:2, xRange:[-1,5], yRange:[-1,6],
+     pieces:[{fn:x=>0.5*(x-2)*(x-2)+1, domain:[-1,5]}], points:[{x:2,y:1,filled:true}],
+     desc:'아래로 볼록한 곡선이 매끄러운 형태로 이어져 있고, 끊어지거나 뾰족한 곳이 전혀 없다.',
+     tags: { connected: true, hasHole: false, isSharp: false, leftVal: 1, rightVal: 1, actualVal: 1, leftSlope: 0, rightSlope: 0 },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'연속', reason:'끊어진 곳 없이 매끄럽게 이어짐'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분가능', reason:'x=2 좌우의 기울기가 모두 0으로 일치'}
+     ]},
+    {id:'2', aX:2, xRange:[-1,5], yRange:[-1,5],
+     pieces:[{fn:x=>Math.abs(x-2)+1, domain:[-1,5]}], points:[{x:2,y:1,filled:true}],
+     desc:'V자 모양으로 선이 이어져 있으나, x=2 지점에서 뾰족하게 꺾여 있다.',
+     tags: { connected: true, hasHole: false, isSharp: true, leftVal: 1, rightVal: 1, actualVal: 1, leftSlope: -1, rightSlope: 1 },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'연속', reason:'끊어진 곳 없이 이어짐'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분불가능', reason:'좌측 기울기(-1)와 우측 기울기(1)가 서로 다름'}
+     ]},
+    {id:'3', aX:2, xRange:[-1,5], yRange:[-1,5],
+     pieces:[{fn:x=>Math.cbrt(x-2)*1.3+2, domain:[-1,5]}], points:[{x:2,y:2,filled:true}],
+     desc:'선이 끊어지지 않고 이어져 있지만, x=2 지점에서 선이 수직으로 바짝 서는 형태다.',
+     tags: { connected: true, hasHole: false, isSharp: false, isVertical: true, leftVal: 2, rightVal: 2, actualVal: 2, leftSlope: 'infinity', rightSlope: 'infinity' },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'연속', reason:'끊어진 곳 없이 이어짐'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분불가능', reason:'x=2에서 수직 접선을 가져 기울기가 무한대임'}
+     ]},
+    {id:'4', aX:2, xRange:[-1,5], yRange:[-1,5],
+     pieces:[{fn:x=>0.15*Math.pow(x-2,3)+2, domain:[-1,5]}], points:[{x:2,y:2,filled:true}],
+     desc:'곡선이 x=2를 지나며 아주 잠깐 수평(평평)해졌다가 다시 올라가는 부드러운 형태다.',
+     tags: { connected: true, hasHole: false, isSharp: false, leftVal: 2, rightVal: 2, actualVal: 2, leftSlope: 0, rightSlope: 0 },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'연속', reason:'끊어진 곳 없이 이어짐'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분가능', reason:'x=2 근처 좌우 기울기가 모두 0임'}
+     ]},
+    {id:'5', aX:2, xRange:[-1,5], yRange:[-1,6],
+     pieces:[{fn:x=>Math.pow(x-2,2)+2, domain:[-1,2]},{fn:x=>2, domain:[2,5]}], points:[{x:2,y:2,filled:true}],
+     desc:'왼쪽은 곡선, 오른쪽은 수평직선이지만 만나는 x=2 지점에서 꺾임 없이 아주 부드럽게 연결된다.',
+     tags: { connected: true, hasHole: false, isSharp: false, leftVal: 2, rightVal: 2, actualVal: 2, leftSlope: 0, rightSlope: 0 },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'연속', reason:'두 조각이 같은 값으로 만남'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분가능', reason:'좌우 기울기가 모두 0으로 일치'}
+     ]},
+    {id:'6', aX:2, xRange:[-1,5], yRange:[-1,7],
+     pieces:[{fn:x=>x+2, domain:[-1,5], skipNear:2}], points:[{x:2,y:4,filled:false}],
+     desc:'곧은 직선이지만, 딱 x=2 위치에 뻥 뚫린 빈 원(구멍)만 있고 색칠된 점은 어디에도 없다.',
+     tags: { connected: false, hasHole: true, isSharp: false, actualValExists: false, leftVal: 4, rightVal: 4, actualVal: null, leftSlope: 1, rightSlope: 1 },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'불연속', reason:'함숫값 자체가 없음'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분불가능', reason:'함숫값이 없으므로 미분불가'}
+     ]},
+    {id:'7', aX:2, xRange:[-1,5], yRange:[-1,7],
+     pieces:[{fn:x=>x+1, domain:[-1,5], skipNear:2}], points:[{x:2,y:3,filled:false},{x:2,y:5,filled:true}],
+     desc:'직선에 구멍이 뚫려있고, 그 구멍 위치가 아닌 다른 엉뚱한 허공에 점이 하나 색칠되어 있다.',
+     tags: { connected: false, hasHole: true, isSharp: false, actualValExists: true, leftVal: 3, rightVal: 3, actualVal: 5, leftSlope: 1, rightSlope: 1 },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'불연속', reason:'다가가는 값(3)과 실제 값(5)이 다름'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분불가능', reason:'불연속이므로 미분불가'}
+     ]},
+    {id:'8', aX:2, xRange:[-1,5], yRange:[-1,6],
+     pieces:[{fn:x=>-0.5*x+3, domain:[-1,2]},{fn:x=>x+1, domain:[2,5]}], points:[{x:2,y:2,filled:false},{x:2,y:3,filled:true}],
+     desc:'왼쪽 선과 오른쪽 선이 서로 다른 높이에서 끝나고 시작하여, 중간이 계단처럼 뚝 끊어져 있다.',
+     tags: { connected: false, hasGap: true, isSharp: false, leftVal: 2, rightVal: 3, actualVal: 3, leftSlope: -0.5, rightSlope: 1 },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'불연속', reason:'좌우 다가가는 높이가 다름'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분불가능', reason:'불연속이므로 미분불가'}
+     ]},
+    {id:'9', aX:2, xRange:[-1,5], yRange:[-3,7],
+     pieces:[{fn:x=>1/(x-2)+2, domain:[-1,5], skipNear:2}], points:[],
+     desc:'x=2 근처에서 그래프가 한없이 위아래로 찢어지듯 치솟으며, 색칠된 점도 없다.',
+     tags: { connected: false, goesToInfinity: true, isSharp: false, leftVal: '-infinity', rightVal: 'infinity', actualVal: null },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'불연속', reason:'값이 무한대로 발산'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분불가능', reason:'불연속이므로 미분불가'}
+     ]},
+    {id:'10', aX:2, xRange:[-1,5], yRange:[-0.5,5],
+     pieces:[{fn:x=>0.4*x+1.6, domain:[-1,2]},{fn:x=>0.4*x+2.0, domain:[2,5]}], points:[{x:2,y:2.4,filled:false},{x:2,y:2.8,filled:true}],
+     desc:'왼쪽과 오른쪽 직선의 기울기는 똑같지만, x=2에서 아주 미세하게 높이 차이가 나면서 틈이 벌어져 있다.',
+     tags: { connected: false, hasGap: true, isSharp: false, leftVal: 2.4, rightVal: 2.8, actualVal: 2.8, leftSlope: 0.4, rightSlope: 0.4 },
+     checks:[
+      {key:'continuity', label:'연속성', options:['연속','불연속'], answer:'불연속', reason:'기울기는 같아도 높이가 달라서 끊어짐'},
+      {key:'diff', label:'미분가능성', options:['미분가능','미분불가능'], answer:'미분불가능', reason:'불연속이므로 미분불가'}
+     ]}
+    ];
+
+    let classifications={}, myAcc=0, submitted=false, promptHistory=[];
+    const TOTAL_CHECKS = GRAPHS.reduce((s,g)=>s+g.checks.length,0);
+
+    function showToast(msg, isError = false) {
+      const toast = document.getElementById('toast-message');
+      document.getElementById('toast-text').textContent = msg;
+      
+      toast.className = `fixed top-5 left-1/2 -translate-x-1/2 z-50 transform transition-all duration-300 opacity-100 px-6 py-3 rounded-xl shadow-lg font-bold text-sm flex items-center gap-2 ${isError ? 'bg-red-600 text-white' : 'bg-stone-800 text-white'}`;
+      
+      setTimeout(() => {
+        toast.classList.remove('opacity-100');
+        toast.classList.add('opacity-0', 'pointer-events-none');
+      }, 3000);
+    }
+
+    // Apps Script 통신용 Helper
+    async function fetchGAS(payload) {
+      try {
+        const response = await fetch(GAS_WEB_APP_URL, {
+          method: 'POST',
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if(!result.success) throw new Error(result.error);
+        return result;
+      } catch (err) {
+        console.error("GAS Error:", err);
+        throw err;
+      }
+    }
+
+    function switchTab(t) {
+        ['solve','ai','results'].forEach(k=>{
+            document.getElementById('tab-'+k).classList.toggle('hidden',k!==t);
+            document.getElementById('tab-'+k+'-btn').classList.toggle('active',k===t);
+        });
+        if(t==='results') loadResultsFunc();
+    }
+
+    function drawGraph(canvas,g) {
+        const ctx=canvas.getContext('2d');
+        const W=canvas.width,H=canvas.height;
+        ctx.clearRect(0,0,W,H);
+        const xMin=g.xRange[0],xMax=g.xRange[1],yMin=g.yRange[0],yMax=g.yRange[1];
+        const pad=30;
+        const plotW=W-pad*2,plotH=H-pad*2;
+        function toX(x){return pad+(x-xMin)/(xMax-xMin)*plotW;}
+        function toY(y){return pad+(yMax-y)/(yMax-yMin)*plotH;}
+
+        // grid
+        ctx.strokeStyle='#ede7db';ctx.lineWidth=0.5;
+        for(let x=Math.ceil(xMin);x<=Math.floor(xMax);x++){ctx.beginPath();ctx.moveTo(toX(x),pad);ctx.lineTo(toX(x),pad+plotH);ctx.stroke();}
+        for(let y=Math.ceil(yMin);y<=Math.floor(yMax);y++){ctx.beginPath();ctx.moveTo(pad,toY(y));ctx.lineTo(pad+plotW,toY(y));ctx.stroke();}
+
+        // axes (x축, y축)
+        ctx.strokeStyle='#a8a29e';ctx.lineWidth=1.5;
+        const ax=toX(0),ay=toY(0);
+        ctx.beginPath();ctx.moveTo(pad,ay);ctx.lineTo(pad+plotW+12,ay);ctx.stroke(); // x축 연장
+        ctx.beginPath();ctx.moveTo(ax,pad-12);ctx.lineTo(ax,pad+plotH);ctx.stroke(); // y축 연장
+
+        // x축 화살표
+        ctx.beginPath();ctx.moveTo(pad+plotW+12,ay);ctx.lineTo(pad+plotW+5,ay-4);ctx.lineTo(pad+plotW+5,ay+4);ctx.fillStyle='#a8a29e';ctx.fill();
+        // y축 화살표
+        ctx.beginPath();ctx.moveTo(ax,pad-12);ctx.lineTo(ax-4,pad-5);ctx.lineTo(ax+4,pad-5);ctx.fillStyle='#a8a29e';ctx.fill();
+
+        // 축 라벨 (x, y, O)
+        ctx.fillStyle='#78716c';ctx.font='italic 12px "Noto Sans KR"';
+        ctx.textAlign='left';ctx.fillText('x', pad+plotW+15, ay+4);
+        ctx.textAlign='center';ctx.fillText('y', ax, pad-18);
+        ctx.font='11px "Noto Sans KR"';ctx.textAlign='right';ctx.fillText('O', ax-6, ay+14);
+
+        // dashed vertical at x=a
+        const aPixel=toX(g.aX);
+        ctx.strokeStyle='#ef4444';ctx.lineWidth=1.5;ctx.setLineDash([4,4]);
+        ctx.beginPath();ctx.moveTo(aPixel,pad);ctx.lineTo(aPixel,pad+plotH);ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle='#ef4444';ctx.font='10px Noto Sans KR';ctx.textAlign='center';
+        ctx.fillText('x = a',aPixel,pad+plotH+12);
+
+        // draw curve pieces
+        ctx.strokeStyle='#047857';ctx.lineWidth=2.5;ctx.lineJoin='round';
+        (g.pieces||[]).forEach(piece=>{
+            ctx.beginPath();let started=false;
+            const steps= 400; const eps= 0.08;
+            for(let k=0;k<=steps;k++){
+                const x=piece.domain[0]+(piece.domain[1]-piece.domain[0])*(k/steps);
+                if(piece.skipNear!==undefined&&Math.abs(x-piece.skipNear)<eps){started=false;continue;}
+                const y=piece.fn(x);
+                if(!isFinite(y)||y<yMin-2||y>yMax+2){started=false;continue;}
+                const cx=toX(x),cy=toY(y);
+                if(!started){ctx.moveTo(cx,cy);started=true;}else ctx.lineTo(cx,cy);
+            }
+            ctx.stroke();
+        });
+
+        // draw point markers
+        (g.points||[]).forEach(p=>{
+            if(p.filled){
+                ctx.fillStyle='#c0440e';
+                ctx.beginPath();ctx.arc(toX(p.x),toY(p.y),4,0,Math.PI*2);ctx.fill();
+            }else{
+                ctx.strokeStyle='#c0440e';ctx.lineWidth=2;ctx.fillStyle='#fafaf5';
+                ctx.beginPath();ctx.arc(toX(p.x),toY(p.y),4,0,Math.PI*2);ctx.fill();ctx.stroke();
+            }
+        });
+    }
+
+    function buildGrid() {
+        const grid=document.getElementById('graph-grid');grid.innerHTML='';
+        GRAPHS.forEach((g,i)=>{
+            const card=document.createElement('div');
+            card.className='graph-card hover:shadow-md transition-shadow';
+            let cpHTML='';
+            g.checks.forEach((chk,ci)=>{
+                cpHTML+=`<div class="checkpoint-section"><p class="checkpoint-title flex items-center gap-1"><i data-lucide="target" class="w-3 h-3"></i> ${chk.label}</p><div class="flex items-center gap-1 mb-1 flex-wrap">${chk.options.map(o=>`<button class="opt-btn" onclick="sel(${i},${ci},'${o}',this)">${o}</button>`).join('')}</div></div>`;
+            });
+            card.innerHTML=`<div class="flex items-center justify-between mb-2"><span class="text-sm font-bold text-stone-700 bg-stone-100 px-2 py-0.5 rounded">그래프 ${g.id}</span></div><div class="flex justify-center mb-2"><canvas id="cv-${i}" class="graph-canvas" width="280" height="200"></canvas></div>${cpHTML}<div id="result-${i}" class="hidden mt-2 text-xs"></div>`;
+            grid.appendChild(card);
+            setTimeout(()=>drawGraph(document.getElementById('cv-'+i),g),0);
+        });
+        updateProgress();
+    }
+
+    function sel(gi,ci,val,btn) {
+        btn.parentElement.querySelectorAll('.opt-btn').forEach(b=>b.classList.remove('selected'));
+        btn.classList.add('selected');
+        if(!classifications[gi]) classifications[gi]={};
+        classifications[gi][ci]=val;
+        updateProgress();
+    }
+
+    function updateProgress() {
+        let done=0;
+        GRAPHS.forEach((g,i)=>{if(classifications[i])done+=Object.keys(classifications[i]).length;});
+        document.getElementById('progress-text').textContent=`${done} / ${TOTAL_CHECKS} 문항 응답`;
+        if(window.lucide) lucide.createIcons();
+    }
+
+    function updateSubmittedUI() {
+        const hint=document.getElementById('solve-next-hint');
+        const compareBtn=document.getElementById('btn-ai-compare');
+        const lockMsg=document.getElementById('ai-locked-msg');
+        const aiMyAcc=document.getElementById('ai-my-acc');
+        if(submitted){
+            hint.classList.remove('hidden');
+            compareBtn.disabled=false;
+            lockMsg.classList.add('hidden');
+            aiMyAcc.textContent=myAcc+'%';
+        }else{
+            hint.classList.add('hidden');
+            compareBtn.disabled=true;
+            lockMsg.classList.remove('hidden');
+            aiMyAcc.textContent='-';
+        }
+    }
+
+    function submitClassification() {
+        let answeredCp=0;
+        GRAPHS.forEach((g,i)=>{g.checks.forEach((chk,ci)=>{if(classifications[i]?.[ci])answeredCp++;});});
+        if(answeredCp<TOTAL_CHECKS){
+            showToast("모든 그래프의 연속성과 미분가능성을 판별해주세요.", true);
+            return;
+        }
+        let correct=0,total=0;
+        GRAPHS.forEach((g,i)=>{
+            const el=document.getElementById('result-'+i);
+            let html='<div class="space-y-1 mt-2 pt-2 border-t border-stone-200">';
+        g.checks.forEach((chk,ci)=>{
+            total++;
+            const mine=classifications[i]?.[ci]||'-';
+            const ok=mine===chk.answer;
+            if(ok) correct++;
+            html+=`<div class="flex items-center justify-between text-xs pb-1"><span>${chk.label}: <strong class="${ok?'text-emerald-600':'text-red-500'}">${mine}</strong></span><span class="text-stone-400">정답: ${chk.answer}</span></div>`;
+        });
+        html+='</div>';el.innerHTML=html;el.classList.remove('hidden');
+    });
+    myAcc=Math.round(correct/total*100);
+    submitted=true;
+    document.getElementById('my-status').textContent=`정답률 ${myAcc}% (${correct}/${total})`;
+    updateSubmittedUI();
+}
+
+async function compareWithAI() {
+    if(!submitted) { showToast('먼저 ①탭에서 제출을 완료해주세요.', true); return; }
+        const promptContEl=document.getElementById('ai-prompt-cont');
+        const promptDiffEl=document.getElementById('ai-prompt-diff');
+        const promptCont=promptContEl.value.trim();
+        const promptDiff=promptDiffEl.value.trim();
+        
+        if(!promptCont || !promptDiff) { showToast('연속과 미분가능성에 대한 기준을 모두 작성해주세요.', true); return; }
+
+        const combinedPrompt = `[연속 기준]\n${promptCont}\n\n[미분가능 기준]\n${promptDiff}`;
+
+        const forbiddenWords = ['극한', '수렴', '발산', '미분계수'];
+        const foundWords = forbiddenWords.filter(w => combinedPrompt.includes(w));
+        if (foundWords.length > 0) {
+            showToast(`금지어 발견: '${foundWords.join(', ')}'. 이 단어를 쓰지 말고 풀어서 설명해주세요.`, true);
+            return;
+        }
+
+        const btn=document.getElementById('btn-ai-compare');
+        const origContent=btn.innerHTML;
+        btn.disabled=true;
+        btn.innerHTML='<i data-lucide="loader" class="w-4 h-4 animate-spin"></i> AI가 생각하는 중...';
+        if(window.lucide) lucide.createIcons();
+
+        const graphDataString = GRAPHS.map(g => {
+            return `[그래프 ${g.id}]\n설명: ${g.desc}\n태그(객관적 형태): ${JSON.stringify(g.tags)}`;
+        }).join('\n\n');
+
+        const systemInstruction = `너는 고등학교 수학까지는 배웠으나, '극한, 수렴, 발산, 미분계수'라는 단어의 뜻은 전혀 모르는 기계적인 판단자다. 너는 오직 사용자가 제공한 기준만을 사용하여 10개의 그래프를 판별해야 한다.
+
+[중요 규칙]
+1. 사용자의 설명은 '연속성 기준'과 '미분가능성 기준'으로 나뉘어 제공된다. 연속성을 판단할 때는 '연속성 기준'만, 미분가능성을 판단할 때는 '미분가능성 기준'만 서로 완전히 분리하여 독립적으로 적용해라.
+2. [학생의 오개념 완벽 반영 - 매우 중요!] 미분가능성 기준에 "이어져 있어야 한다(연속)"는 조건이 명시적으로 없고 단지 "뾰족하지 않으면", "부드러우면", "둥글면" 이라고만 적혀 있다면, 구멍이 있거나 끊어지거나 무한대로 치솟는 그래프라도 뾰족하게 꺾인 부분(isSharp: true)이 없다면 **무조건 '미분가능'으로 잘못 판단해라**. 네 스스로 "그래도 끊어져 있으니까 미분불가능하다"며 수학적 진실을 개입시키면 절대 안 된다.
+3. 사용자의 설명에 특정 수학 단어(극한, 미분계수 등)가 혹시라도 우회적으로 들어가 있다면, 그 단어는 의미를 알 수 없는 외계어로 취급해라.
+4. 오직 입력된 문장을 "문자 그대로" 기계적으로 적용해라.
+5. 각 그래프의 자연어 '설명'뿐만 아니라 '태그(객관적 형태)' 정보를 적극 활용해라.
+6. [가장 중요] 사고과정(thought_process) 작성 규칙:
+   - '1단계', '2단계', '1.', '2.' 같은 번호 매기기나 단계 구분을 절대 하지 마라. 오직 하나의 자연스러운 줄글 문단으로만 작성해라.
+   - [절대 금지] \`connected: true\`, \`isSharp: false\` 같은 영문 태그명이나 코드를 문자 그대로 절대 노출하지 마라. 대신 부드러운 한국어로 번역하여 설명해라.
+7. 기준이 없거나 불명확해서 대조가 불가능하면 임의로 판단하고, 이유에 "기준 없음"을 명시해라.
+8. JSON 포맷으로 10개의 그래프 모두 빠짐없이 반환해라.
+9. reason 필드는 친절한 선생님의 말투(~해서 ~합니다)로 작성해라.`;
+
+        const userMessage = `[나의 설명 - 연속성 기준]\n"${promptCont}"\n\n[나의 설명 - 미분가능성 기준]\n"${promptDiff}"\n\n[그래프 목록]\n${graphDataString}`;
+
+        const payload = {
+            contents: [{ parts: [{ text: userMessage }] }],
+            systemInstruction: { parts: [{ text: systemInstruction }] },
+            generationConfig: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: "OBJECT",
+                    properties: {
+                        answers: {
+                            type: "ARRAY",
+                            items: {
+                                type: "OBJECT",
+                                properties: {
+                                    "graphId": { type: "STRING" },
+                                    "thought_process": { type: "STRING" },
+                                    "continuity": { type: "STRING" },
+                                    "continuityReason": { type: "STRING" },
+                                    "differentiability": { type: "STRING" },
+                                    "diffReason": { type: "STRING" }
+                                },
+                                required: ["graphId", "thought_process", "continuity", "continuityReason", "differentiability", "diffReason"]
+                            }
+                        }
+                    }
+                }
+            }
+        };
+
+        try {
+            const apiKey = ""; // Canvas 환경에서 자동 주입 (또는 API KEY 직접 입력)
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            const result = await response.json();
+            if (!result.candidates || result.candidates.length === 0) throw new Error("AI 응답 없음");
+            
+            const jsonText = result.candidates[0].content.parts[0].text;
+            const parsed = JSON.parse(jsonText);
+            
+            processAIResults(parsed.answers, combinedPrompt);
+        } catch (err) {
+            console.error('AI 호출 실패:', err);
+            showToast('AI 분석 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.', true);
+        } finally {
+            btn.disabled=false;
+            btn.innerHTML=origContent;
+            if(window.lucide) lucide.createIcons();
+        }
+    }
+
+    function processAIResults(answers, promptText) {
+        const aiMap={};
+        (answers||[]).forEach(a=>{aiMap[String(a.graphId)]=a;});
+
+        let aiCorrect=0,total=0;
+        const results=[];
+        
+        GRAPHS.forEach(g=>{
+            const a=aiMap[g.id]||{};
+            g.checks.forEach(chk=>{
+                total++;
+                const isCont = chk.key==='continuity';
+                const value = (isCont ? a.continuity : a.differentiability) || '';
+                const reason = (isCont ? a.continuityReason : a.diffReason) || '';
+                const thought = a.thought_process || '';
+                
+                const isUnknown = value.includes('알') || value.includes('없');
+                const rawCorrect = (value === chk.answer);
+                if(rawCorrect) aiCorrect++;
+                
+                results.push({
+                    graphId:g.id, 
+                    checkpoint:chk.label, 
+                    value: value || '응답없음', 
+                    reason: reason || '', 
+                    thought: thought,
+                    correct: rawCorrect,
+                    isUnknown: isUnknown
+                });
+            });
+        });
+
+        const aiAccVal = Math.round(aiCorrect/total*100);
+        const attempt = {
+            id: 'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
+            text: promptText,
+            time: new Date().toISOString(),
+            aiAcc: aiAccVal,
+            myAcc: myAcc,
+            results: results,
+            shared: false
+        };
+        promptHistory.unshift(attempt);
+
+        drawGauge('gauge-my', myAcc, '#059669'); 
+        drawGauge('gauge-ai', aiAccVal, '#7e22ce'); 
+        document.getElementById('accuracy-panel').classList.remove('hidden');
+        
+        const resultEl = document.getElementById('ai-current-result');
+        resultEl.innerHTML = '<h4 class="text-base font-bold text-stone-800 mb-3 flex items-center gap-2"><i data-lucide="cpu" class="w-4 h-4"></i> 이번 시도 – AI의 판별 결과</h4>';
+        const gridWrap = document.createElement('div');
+        resultEl.appendChild(gridWrap);
+        renderAttemptResultGrid(gridWrap, attempt, 'cur');
+
+        renderPromptHistory();
+        if(window.lucide) lucide.createIcons();
+    }
+
+    function buildCheckpointResultHTML(g, attempt) {
+        let html='<div class="space-y-3 mt-3 pt-3 border-t border-stone-200">';
+        const r1 = attempt.results.find(x=>x.graphId===g.id);
+        if(r1 && r1.thought) {
+            html += `<div class="bg-purple-50 p-2 rounded text-[11px] text-purple-900 border border-purple-100"><strong class="block mb-1">AI의 사고 과정:</strong>${r1.thought.replace(/\n/g,'<br>')}</div>`;
+        }
+
+        g.checks.forEach(chk=>{
+            const r=attempt.results.find(x=>x.graphId===g.id&&x.checkpoint===chk.label);
+            if(!r)return;
+            const ok = r.correct;
+            const color = ok ? 'text-purple-600' : 'text-red-500';
+            const icon = ok ? '✓' : '✕';
+            
+            html+=`<div>`;
+            html+=`<div class="flex items-center justify-between text-xs mb-1">
+                    <span>${chk.label}: <strong class="${color}">${r.value}</strong> ${icon}</span>
+                    <span class="text-stone-400">정답: ${chk.answer}</span>
+                   </div>`;
+            if(r.reason) {
+                html+=`<div class="text-[11px] text-stone-600 bg-white border border-stone-200 p-2 rounded mt-1.5 shadow-sm leading-relaxed"><strong class="text-emerald-700">AI의 설명:</strong> ${r.reason}</div>`;
+            }
+            if(r.isUnknown) {
+                html+=`<div class="text-[10px] text-amber-600 font-semibold mt-1">⚠ 기준이 명확하지 않아 AI가 임의로 판단했습니다.</div>`;
+            }
+            html+=`</div>`;
+        });
+        html+='</div>';
+        return html;
+    }
+
+    function renderAttemptResultGrid(container, attempt, idPrefix) {
+        let html='<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">';
+        GRAPHS.forEach((g,i)=>{
+            html+=`<div class="graph-card shadow-sm"><div class="flex items-center justify-between mb-2"><span class="text-sm font-bold text-stone-700">그래프 ${g.id}</span></div><div class="flex justify-center mb-2"><canvas id="${idPrefix}-cv-${i}" class="graph-canvas" width="280" height="200"></canvas></div>${buildCheckpointResultHTML(g,attempt)}</div>`;
+        });
+        html+='</div>';
+        container.innerHTML=html;
+        GRAPHS.forEach((g,i)=>{
+            const cv=document.getElementById(`${idPrefix}-cv-${i}`);
+            if(cv) drawGraph(cv,g);
+        });
+    }
+
+    function drawGauge(id, pct, color) {
+        const c=document.getElementById(id), ctx=c.getContext('2d'), w=c.width, h=c.height;
+        ctx.clearRect(0,0,w,h); const cx=w/2, cy=h-10, r=40;
+        ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI,0); ctx.strokeStyle='#e7e5e4'; ctx.lineWidth=12; ctx.lineCap='round'; ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx,cy,r,Math.PI,Math.PI+(pct/100)*Math.PI); ctx.strokeStyle=color; ctx.lineWidth=12; ctx.lineCap='round'; ctx.stroke();
+        ctx.fillStyle='#292524'; ctx.font='bold 18px Noto Sans KR'; ctx.textAlign='center'; ctx.fillText(pct+'%',cx,cy-5);
+    }
+
+    function renderPromptHistory() {
+        const list=document.getElementById('prompt-history-list'), noH=document.getElementById('no-prompt-history');
+        if(!promptHistory.length) { list.innerHTML=''; noH.classList.remove('hidden'); return; }
+        noH.classList.add('hidden');
+        list.innerHTML=promptHistory.map((p,i)=>`
+        <div class="bg-stone-50 border border-stone-200 rounded-xl p-4">
+         <div class="flex items-start justify-between flex-wrap gap-2">
+          <div class="flex-1">
+           <p class="text-xs text-stone-400 font-medium">${new Date(p.time).toLocaleString('ko-KR')}</p>
+           <p class="text-sm text-stone-700 mt-2 font-medium bg-white p-3 rounded border border-stone-200 whitespace-pre-wrap">${p.text}</p>
+          </div>
+          <div class="flex flex-col items-end gap-1">
+              <div class="bg-purple-100 text-purple-700 font-bold text-xs px-3 py-1.5 rounded-full whitespace-nowrap">AI 정확도 ${p.aiAcc}%</div>
+              <div class="bg-emerald-100 text-emerald-700 font-bold text-xs px-3 py-1.5 rounded-full whitespace-nowrap">내 정확도 ${p.myAcc}%</div>
+          </div>
+         </div>
+         <div class="flex gap-2 mt-3 pt-3 border-t border-stone-200">
+          <button onclick="toggleHistoryDetail('${p.id}')" class="text-xs px-3 py-1.5 rounded border border-stone-300 text-stone-600 hover:bg-white bg-stone-100 font-medium">결과 상세보기</button>
+          <button onclick="shareAttempt('${p.id}')" class="text-xs px-3 py-1.5 rounded font-medium flex items-center gap-1 ${p.shared?'bg-stone-300 text-stone-500 cursor-default':'bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm'}" ${p.shared?'disabled':''}>
+            ${p.shared?'<i data-lucide="check" class="w-3 h-3"></i> 공유 완료':'<i data-lucide="share" class="w-3 h-3"></i> 이 설명 공유하기'}
+          </button>
+         </div>
+         <div id="hist-detail-${p.id}" class="hidden mt-4 pt-2 border-t border-dashed border-stone-300"></div>
+        </div>`).join('');
+        if(window.lucide) lucide.createIcons();
+    }
+
+    function toggleHistoryDetail(id) {
+        const el=document.getElementById('hist-detail-'+id);
+        if(!el) return;
+        el.classList.toggle('hidden');
+        if(!el.classList.contains('hidden') && !el.dataset.rendered){
+            const attempt=promptHistory.find(p=>p.id===id);
+            if(attempt) { renderAttemptResultGrid(el, attempt, 'h'+id); el.dataset.rendered='1'; }
+        }
+    }
+
+    function resetAll() {
+        if(!confirm("모든 입력 내용과 기록이 초기화됩니다. 계속하시겠습니까?")) return;
+        classifications={}; myAcc=0; submitted=false; promptHistory=[];
+        document.getElementById('my-status').textContent='아직 제출 전';
+        document.getElementById('accuracy-panel').classList.add('hidden');
+        document.getElementById('ai-current-result').innerHTML='';
+        document.getElementById('ai-prompt-cont').value='';
+        document.getElementById('ai-prompt-diff').value='';
+        updateSubmittedUI();
+        renderPromptHistory();
+        buildGrid();
+        switchTab('solve');
+    }
+
+    async function shareAttempt(id) {
+        if(!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes("YOUR_APPS_SCRIPT_URL_HERE")) {
+            showToast('Apps Script URL이 설정되지 않았습니다.', true); 
+            return; 
+        }
+        const attempt = promptHistory.find(p=>p.id===id);
+        if(!attempt) return;
+        
+        const sid = document.getElementById('student-id').value.trim();
+        const sname = document.getElementById('student-name').value.trim();
+        if(!sid || !sname) {
+            showToast('상단에 학번과 이름을 먼저 입력해주세요.', true);
+            window.scrollTo({top:0, behavior:'smooth'});
+            return;
+        }
+
+        const record = {
+            id: attempt.id,
+            student_id: sid,
+            student_name: sname,
+            prompt: attempt.text,
+            my_accuracy: attempt.myAcc,
+            ai_accuracy: attempt.aiAcc,
+            results: attempt.results,
+            created_at: new Date().toISOString()
+        };
+
+        try {
+            showToast('결과를 서버에 공유하는 중입니다...');
+            await fetchGAS({ action: 'share', data: record });
+            
+            attempt.shared = true;
+            renderPromptHistory();
+            showToast('전체 결과 공유에 업로드 되었습니다!');
+            loadResultsFunc();
+        } catch(err) {
+            showToast('공유에 실패했습니다.', true);
+        }
+    }
+
+    window.loadResultsFunc = async function() {
+        if(!GAS_WEB_APP_URL || GAS_WEB_APP_URL.includes("YOUR_APPS_SCRIPT_URL_HERE")) return;
+        const tbody = document.getElementById('results-tbody');
+        const noR = document.getElementById('no-results');
+        
+        try {
+            const res = await fetchGAS({ action: 'load' });
+            let records = res.data || [];
+            
+            records.sort((a,b) => new Date(b.created_at) - new Date(a.created_at));
+            
+            if(!records.length) {
+                tbody.innerHTML=''; noR.classList.remove('hidden'); return;
+            }
+            noR.classList.add('hidden');
+            
+            let html='';
+            records.forEach(r => {
+                const pre = r.prompt.length > 30 ? r.prompt.substring(0,30)+'...' : r.prompt;
+                const comments = r.comments || [];
+                const likes = r.likes || 0;
+                const commentsHTML = comments.length > 0 
+                    ? comments.map(c => `<div class="bg-white border border-stone-200 rounded px-2 py-1.5 mb-1.5 text-xs shadow-sm"><span class="font-bold text-stone-700">${c.name||'익명'}</span> <span class="text-stone-400 ml-1">· ${new Date(c.time).toLocaleString('ko-KR')}</span><p class="text-stone-600 mt-1">${c.text}</p></div>`).join('') 
+                    : '<p class="text-stone-400 text-xs py-2">아직 댓글이 없습니다.</p>';
+
+                html+=`<tr class="border-b border-stone-100 hover:bg-stone-100 cursor-pointer transition-colors" onclick="toggleSharedDetail('${r.id}')">
+                    <td class="px-4 py-4 font-medium text-stone-800">${r.student_name} <span class="text-xs text-stone-400 font-normal">(${r.student_id})</span></td>
+                    <td class="px-4 py-4 text-stone-600 truncate max-w-[200px]" title="${r.prompt}">${pre}</td>
+                    <td class="px-4 py-4 text-center font-bold text-emerald-600">${r.my_accuracy}%</td>
+                    <td class="px-4 py-4 text-center font-bold text-purple-600">${r.ai_accuracy}%</td>
+                    <td class="px-4 py-4 text-center text-stone-400"><i data-lucide="chevron-down" class="w-4 h-4 mx-auto"></i></td>
+                </tr>
+                <tr id="shared-detail-${r.id}" class="hidden bg-stone-50 border-b border-stone-200 shadow-inner">
+                    <td colspan="5" class="px-6 py-4">
+                        <div class="mb-3">
+                            <span class="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">전체 프롬프트</span>
+                            <div class="bg-white p-3 rounded border border-stone-200 text-sm whitespace-pre-wrap">${r.prompt}</div>
+                        </div>
+                        <div class="mb-4">
+                            <span class="text-xs font-bold text-stone-500 uppercase tracking-wider mb-1 block">채점 요약 (AI의 판단)</span>
+                            <div class="flex flex-wrap gap-x-4 gap-y-2 text-xs">
+                                ${buildSharedSummaryHTML(r.results)}
+                            </div>
+                        </div>
+                        <div class="border-t border-stone-200 pt-3" onclick="event.stopPropagation()">
+                            <button onclick="addLike('${r.id}')" class="text-xs px-3 py-1.5 rounded-lg border border-stone-300 text-stone-700 hover:bg-white bg-stone-100 font-medium mb-3 flex items-center gap-1 transition-colors">
+                                <i data-lucide="thumbs-up" class="w-3.5 h-3.5"></i> 추천하기 <span class="font-bold text-emerald-600 ml-1">${likes}</span>
+                            </button>
+                            <span class="text-xs font-bold text-stone-500 uppercase tracking-wider mb-2 block">댓글 (${comments.length})</span>
+                            <div class="mb-3 max-h-40 overflow-y-auto pr-2">${commentsHTML}</div>
+                            <div class="flex gap-2">
+                                <input id="comment-name-${r.id}" type="text" placeholder="이름" class="border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs w-24 focus:outline-none focus:border-emerald-500">
+                                <input id="comment-input-${r.id}" type="text" placeholder="댓글을 입력하세요" class="border border-stone-300 rounded-lg px-2.5 py-1.5 text-xs flex-1 focus:outline-none focus:border-emerald-500" onkeydown="if(event.key==='Enter') addComment('${r.id}')">
+                                <button onclick="addComment('${r.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-4 py-1.5 rounded-lg font-medium transition-colors">등록</button>
+                            </div>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+            tbody.innerHTML = html;
+            if(window.lucide) lucide.createIcons();
+            
+        } catch (err) {
+            console.error("데이터 로드 실패", err);
+        }
+    };
+
+    function toggleSharedDetail(id) {
+        const el = document.getElementById('shared-detail-'+id);
+        if(el) el.classList.toggle('hidden');
+    }
+
+    window.addLike = async function(docId) {
+        try {
+            await fetchGAS({ action: 'like', id: docId });
+            await loadResultsFunc();
+            const detail = document.getElementById('shared-detail-'+docId);
+            if(detail) detail.classList.remove('hidden');
+        } catch(err) {
+            showToast('추천 중 오류가 발생했습니다.', true);
+        }
+    };
+
+    window.addComment = async function(docId) {
+        const nameInput = document.getElementById('comment-name-'+docId);
+        const textInput = document.getElementById('comment-input-'+docId);
+        const text = textInput.value.trim();
+        if(!text) return;
+        const name = nameInput.value.trim() || '익명';
+        
+        try {
+            await fetchGAS({ 
+                action: 'comment', 
+                id: docId, 
+                comment: { name, text, time: new Date().toISOString() }
+            });
+            await loadResultsFunc();
+            const detail = document.getElementById('shared-detail-'+docId);
+            if(detail) detail.classList.remove('hidden');
+        } catch(err) {
+            showToast('댓글 등록 중 오류가 발생했습니다.', true);
+        }
+    };
+
+    function buildSharedSummaryHTML(results) {
+        if(!results||!results.length) return '<span class="text-stone-400">데이터 없음</span>';
+        const byGraph={};
+        results.forEach(r=>{if(!byGraph[r.graphId])byGraph[r.graphId]=[];byGraph[r.graphId].push(r);});
+        
+        let html = '';
+        Object.keys(byGraph).sort((a,b)=>Number(a)-Number(b)).forEach(gid=>{
+            const items = byGraph[gid];
+            const isAllCorrect = items.every(i => i.correct);
+            const dots = items.map(r=>`<span title="${r.checkpoint}: ${r.value}" class="${r.correct?'text-emerald-600':'text-red-500 font-bold'}">${r.correct?'O':'X'}</span>`).join('');
+            html += `<div class="bg-white px-2 py-1 border ${isAllCorrect ? 'border-emerald-200' : 'border-red-200'} rounded">
+                        <strong class="text-stone-600 mr-1">그래프${gid}</strong> ${dots}
+                     </div>`;
+        });
+        return html;
+    }
+
+    // Initialize UI
+    updateSubmittedUI();
+    renderPromptHistory();
+    buildGrid();
+    
+    // 초기 로딩 시 결과 불러오기 실행
+    setTimeout(loadResultsFunc, 1000); 
+  </script>
+ </body>
+</html>
